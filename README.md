@@ -4,4 +4,4 @@ Build a deterministic code graph from a Python repo and ask questions about it w
 
 Status: spec only. See [SPEC.md](SPEC.md) for the design, evaluation plan, milestones, and sources.
 
-Tooling: [uv](https://docs.astral.sh/uv/) (same convention as the `ai-lab` projects).
+Stack: Neo4j + LangChain for the graph and querying, [uv](https://docs.astral.sh/uv/) for Python, `podman compose` to run Neo4j and the app.
