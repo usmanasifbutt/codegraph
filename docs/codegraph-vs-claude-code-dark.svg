@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="820" height="330" viewBox="0 0 820 330" role="img" aria-labelledby="t d" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
 <title id="t">codegraph vs Claude Code</title>
-<desc id="d">On expertise-copilot-backend (8 structural questions): codegraph $0.00105 per question vs Claude Code $0.1227; 5.3k vs 91.9k tokens per question; 6 of 8 vs 8 of 8 correct; 8.9 s vs 19.9 s per question.</desc>
+<desc id="d">expertise-copilot-backend · 70 Python files · 8 structural questions. codegraph vs Claude Code per question: cost $0.00099 vs $0.123; tokens 5.0k vs 91.9k; correct 8/8 vs 8/8; latency 7.1 s vs 19.9 s.</desc>
 <rect x="0.5" y="0.5" width="819" height="329" rx="10" fill="#1a1a19" stroke="#33332f"/>
 <text x="24" y="36" font-size="17" font-weight="600" fill="#ffffff">codegraph vs Claude Code</text>
 <text x="24" y="58" font-size="12.5" fill="#c3c2b7">expertise-copilot-backend · 70 Python files · 8 structural questions · codegraph on gpt-4o-mini, Claude Code on Sonnet 5</text>
@@ -12,33 +12,33 @@
 <line x1="120" y1="112" x2="120" y2="174" stroke="#33332f" stroke-width="1"/>
 <text x="110" y="133" font-size="12" text-anchor="end" fill="#c3c2b7">codegraph</text>
 <path d="M120,120 H121.0 Q122,120 122,121.0 V137.0 Q122,138 121.0,138 H120 Z" fill="#3987e5"/>
-<text x="130" y="133" font-size="12" font-weight="600" fill="#ffffff">$0.00105</text>
+<text x="130" y="133" font-size="12" font-weight="600" fill="#ffffff">$0.00099</text>
 <text x="110" y="161" font-size="12" text-anchor="end" fill="#c3c2b7">Claude Code</text>
 <path d="M120,148 H312.0 Q316.0,148 316.0,152 V162 Q316.0,166 312.0,166 H120 Z" fill="#d95926"/>
 <text x="324.0" y="161" font-size="12" font-weight="600" fill="#ffffff">$0.123</text>
 <text x="416" y="100" font-size="12.5" font-weight="600" fill="#ffffff">Tokens per question · lower is better</text>
 <line x1="512" y1="112" x2="512" y2="174" stroke="#33332f" stroke-width="1"/>
 <text x="502" y="133" font-size="12" text-anchor="end" fill="#c3c2b7">codegraph</text>
-<path d="M512,120 H519.3177028909788 Q523.3177028909788,120 523.3177028909788,124 V134 Q523.3177028909788,138 519.3177028909788,138 H512 Z" fill="#3987e5"/>
-<text x="531.3177028909788" y="133" font-size="12" font-weight="600" fill="#ffffff">5.3k</text>
+<path d="M512,120 H518.6941722144443 Q522.6941722144443,120 522.6941722144443,124 V134 Q522.6941722144443,138 518.6941722144443,138 H512 Z" fill="#3987e5"/>
+<text x="530.6941722144443" y="133" font-size="12" font-weight="600" fill="#ffffff">5.0k</text>
 <text x="502" y="161" font-size="12" text-anchor="end" fill="#c3c2b7">Claude Code</text>
 <path d="M512,148 H704.0 Q708.0,148 708.0,152 V162 Q708.0,166 704.0,166 H512 Z" fill="#d95926"/>
 <text x="716.0" y="161" font-size="12" font-weight="600" fill="#ffffff">91.9k</text>
 <text x="24" y="216" font-size="12.5" font-weight="600" fill="#ffffff">Correct answers (of 8) · higher is better</text>
 <line x1="120" y1="228" x2="120" y2="290" stroke="#33332f" stroke-width="1"/>
 <text x="110" y="249" font-size="12" text-anchor="end" fill="#c3c2b7">codegraph</text>
-<path d="M120,236 H263.0 Q267.0,236 267.0,240 V250 Q267.0,254 263.0,254 H120 Z" fill="#3987e5"/>
-<text x="275.0" y="249" font-size="12" font-weight="600" fill="#ffffff">6/8</text>
+<path d="M120,236 H312.0 Q316.0,236 316.0,240 V250 Q316.0,254 312.0,254 H120 Z" fill="#3987e5"/>
+<text x="324.0" y="249" font-size="12" font-weight="600" fill="#ffffff">8/8</text>
 <text x="110" y="277" font-size="12" text-anchor="end" fill="#c3c2b7">Claude Code</text>
 <path d="M120,264 H312.0 Q316.0,264 316.0,268 V278 Q316.0,282 312.0,282 H120 Z" fill="#d95926"/>
 <text x="324.0" y="277" font-size="12" font-weight="600" fill="#ffffff">8/8</text>
 <text x="416" y="216" font-size="12.5" font-weight="600" fill="#ffffff">Latency per question (s) · lower is better</text>
 <line x1="512" y1="228" x2="512" y2="290" stroke="#33332f" stroke-width="1"/>
 <text x="502" y="249" font-size="12" text-anchor="end" fill="#c3c2b7">codegraph</text>
-<path d="M512,236 H595.6582914572864 Q599.6582914572864,236 599.6582914572864,240 V250 Q599.6582914572864,254 595.6582914572864,254 H512 Z" fill="#3987e5"/>
-<text x="607.6582914572864" y="249" font-size="12" font-weight="600" fill="#ffffff">8.9s</text>
+<path d="M512,236 H578.1303056590866 Q582.1303056590866,236 582.1303056590866,240 V250 Q582.1303056590866,254 578.1303056590866,254 H512 Z" fill="#3987e5"/>
+<text x="590.1303056590866" y="249" font-size="12" font-weight="600" fill="#ffffff">7.1s</text>
 <text x="502" y="277" font-size="12" text-anchor="end" fill="#c3c2b7">Claude Code</text>
 <path d="M512,264 H704.0 Q708.0,264 708.0,268 V278 Q708.0,282 704.0,282 H512 Z" fill="#d95926"/>
 <text x="716.0" y="277" font-size="12" font-weight="600" fill="#ffffff">19.9s</text>
-<text x="24" y="316" font-size="11" fill="#8f8e86">Each panel has its own scale. Claude Code cost is its own reported total_cost_usd (API-equivalent). codegraph indexing: 0.7 s, 0 LLM tokens.</text>
+<text x="24" y="316" font-size="11" fill="#8f8e86">Each panel has its own scale. Claude Code cost is its own reported total_cost_usd (API-equivalent). codegraph indexing uses no LLM tokens.</text>
 </svg>

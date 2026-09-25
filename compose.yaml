@@ -1,4 +1,4 @@
-# Run with: podman compose up -d
+# Run with: docker compose up -d   (or: podman compose up -d)
 # Config comes from .env (copy .env.example). No secrets live in this file.
 name: codegraph
 

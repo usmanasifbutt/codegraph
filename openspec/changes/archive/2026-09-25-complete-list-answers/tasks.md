@@ -1,0 +1,26 @@
+## 1. Completeness check (deterministic)
+
+- [x] 1.1 Implement `completeness_suffix(answer, columns, rows)` in `nlq/engine.py`: pick the item column, collect distinct string values in row order, test mentions (whole words, last dotted segment of at least 3 characters), apply `LISTING_THRESHOLD = 0.6`, and build an `Also in the results:` line capped at 20 values with a "+N more" note. Verify with unit tests for "Omitted item appended" (10 async functions, 9 named), "Short names count as mentioned", "Long omission lists are capped" (200 values, 165 mentioned), "Deliberate selection is not padded" (17 packages, 3 named), "Nothing to append", the item column skipping `file`/`line` columns and non-text values, and substring safety (`run` inside `rerun` doesn't count).
+- [x] 1.2 Wire it into `Engine.answer_stream`: yield the suffix after the LLM tokens and before `sources_suffix`, store it in `result.answer`, and skip it for errors, off-topic questions and empty results. Verify with engine unit tests using `FakeQueryLLM` (the final answer contains the appended item, and the order is answer, then "Also in the results", then Sources), and check that `tests/test_ui.py` still passes (the UI shows the suffix as part of the streamed answer).
+
+## 2. Truncated-result repair
+
+- [x] 2.1 Extend `Engine.prepare`: after a successful but truncated execution, make one extra generation with truncation feedback, run it through the executor with origin `repaired`, keep the new rows only if the query succeeds and isn't truncated, and add 1 to `repairs`. Verify with unit tests (fake LLM and executor) for "Aggregation fixes truncation", "Repair still truncated", "Repair rejected" (the original rows are kept, and the fake executor saw the rejected query), "No repair when not truncated" (the generate call count is unchanged), and that the attempt doesn't consume `NLQ_MAX_REPAIRS`.
+- [x] 2.2 Add a Neo4j integration test: index the fixture, use `NLQSettings(max_rows=3)` and a fake LLM that returns a per-import query first and a `DISTINCT` package query second, then check that the result holds the distinct packages, isn't truncated, has 1 repair, and that the audit log shows the `repaired` entry.
+
+## 3. Prompt: distinct list queries
+
+- [x] 3.1 Add the distinct-list rule to `RULES`, replace the per-import library example with a grouped one (keeping the imported names through `collect`), and add a "Which third-party packages does this repo import?" example grouped by top-level package. Verify with the existing example tests (every example passes `check_text` and `classify`), plus a new DB test: each list example returns one row per distinct item on the fixture (no duplicate values in its item column).
+- [x] 3.2 Add the backend-style list questions to the live eval ("Which third-party packages does this repo import?" and "Which non-test functions are async?" on the fixture, with ground truth from `GraphBatch`). Verify with `uv run pytest -m llm -s` once OpenRouter credits are available, and record the pass rate.
+
+## 4. Benchmark in the repo
+
+- [x] 4.1 Create `bench/` (`questions.py`, `scoring.py`, `pricing.py`) from the session scripts, including the fixed ground truth for importers (`from M import X` is attributed to M) and the fixed scoring (dotted and path prefixes accepted, no bare-tail match for modules). Add `bench/results/` to `.gitignore`. Verify with unit tests in `tests/test_bench.py`: fixture questions and ground truth match hand-checked sets, scoring accepts `src.mypkg.user` and `tests.test_cli` forms and rejects bare tails, and `git check-ignore bench/results/x` matches.
+- [x] 4.2 Add the runners `run_codegraph.py`, `run_grep_agent.py` and `run_claude_code.py` (argparse `--repo --name`, JSON output with every answer, token and cost, and wall time; Claude Code restricted to read-only tools) and `report.py` (a markdown table with cost, tokens, correct and latency per approach). Verify with `uv run python -m bench.run_codegraph --repo tests/fixtures/sample_repo --name fixture --dry-run`, which prints the generated questions without calling an LLM, and with `report.py` on a small hand-made results folder.
+- [x] 4.3 Copy the stored Claude Code backend results from the session scratchpad into `bench/results/backend/claude_code.json` (local only). Verify that the file loads in `report.py` and that `git status` doesn't list it.
+
+## 5. Re-run and record
+
+- [x] 5.1 Once OpenRouter credits are topped up, run `bench.run_codegraph` on `expertise-copilot-backend` and generate the report with the stored Claude Code results. Verify that both previously missed questions now pass (target 8/8), and that cost per question stays at or below $0.002. Record before and after numbers in `notes.md` for this change.
+- [x] 5.2 Update the README comparison table and regenerate the chart SVGs with the new codegraph numbers (the chart script moves to `bench/make_chart.py`). Verify that both SVGs render without overlap in light and dark, and that the README numbers match `report.py`.
+- [x] 5.3 Run the full default suite and lint (`uv run pytest` with the stack up, `uv run ruff check`) and `openspec validate complete-list-answers --strict`. Verify that all pass.
