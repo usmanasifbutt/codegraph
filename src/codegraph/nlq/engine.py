@@ -6,6 +6,7 @@ The UI calls `prepare*` and then streams `answer_stream`; other callers use `ask
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -107,6 +108,54 @@ def sources_suffix(answer: str, rows: list[dict[str, Any]]) -> str:
     return f"\n\nSources: {shown}{more}"
 
 
+LOCATION_KEYS = frozenset({*FILE_KEYS, *LINE_KEYS})
+LISTING_THRESHOLD = 0.6  # answers mentioning >= 60% of the items are listing, not selecting
+MAX_APPENDED = 20
+MAX_ITEM_CHARS = 200
+
+
+def item_values(columns: list[str], rows: list[dict[str, Any]]) -> list[str]:
+    """Distinct text values of the item column: the first non-location column holding text."""
+    for column in columns:
+        if column in LOCATION_KEYS:
+            continue
+        values: list[str] = []
+        for row in rows:
+            value = row.get(column)
+            if isinstance(value, str) and value and len(value) <= MAX_ITEM_CHARS:
+                if value not in values:
+                    values.append(value)
+        if values:
+            return values
+    return []
+
+
+def _word(text: str, answer: str) -> bool:
+    return re.search(rf"(?<![\w]){re.escape(text)}(?![\w])", answer) is not None
+
+
+def is_mentioned(value: str, answer: str) -> bool:
+    """The value itself, or its last dotted segment (3+ chars), appears as a whole word."""
+    if _word(value, answer):
+        return True
+    tail = value.rsplit(".", 1)[-1]
+    return "." in value and len(tail) >= 3 and _word(tail, answer)
+
+
+def completeness_suffix(answer: str, columns: list[str], rows: list[dict[str, Any]]) -> str:
+    """Append item values a *listing* answer left out (spec: Grounded answer, completeness)."""
+    values = item_values(columns, rows)
+    if not values:
+        return ""
+    missing = [v for v in values if not is_mentioned(v, answer)]
+    if not missing or (len(values) - len(missing)) / len(values) < LISTING_THRESHOLD:
+        return ""
+    shown = ", ".join(f"`{v}`" for v in missing[:MAX_APPENDED])
+    more = len(missing) - MAX_APPENDED
+    tail = f" (+{more} more in the results table)" if more > 0 else ""
+    return f"\n\nAlso in the results: {shown}{tail}"
+
+
 def off_topic_answer(repo: str, reason: str) -> str:
     base = f"I can't answer that from the code graph of '{repo}'."
     return f"{base} {reason}".strip() if reason else base
@@ -154,6 +203,10 @@ class Engine:
                     continue
                 finally:
                     exec_time += time.perf_counter() - t0
+                if rows.truncated:
+                    t0 = time.perf_counter()
+                    rows = self._repair_truncation(result, rows, question, repo, feedback)
+                    gen_time += time.perf_counter() - t0
                 self._fill(result, rows)
                 return result
         except Exception as exc:  # LLM/API failures: report, never crash the caller
@@ -162,6 +215,38 @@ class Engine:
         finally:
             result.timings.update(generate=round(gen_time, 3), execute=round(exec_time, 3))
         return result  # pragma: no cover  (loop always returns)
+
+    def _repair_truncation(
+        self,
+        result: QuestionResult,
+        rows: Rows,
+        question: str,
+        repo: str,
+        feedback: list[tuple[str, str]],
+    ) -> Rows:
+        """One extra attempt to aggregate or narrow a truncated result (outside max_repairs).
+
+        Keeps the original rows unless the new query runs and is not truncated.
+        """
+        note = (
+            f"The query ran but its results were truncated at {self.nlq.max_rows} rows. Rewrite "
+            "it to return ONE ROW PER DISTINCT ITEM, aggregating occurrences with count() and "
+            "collect(...)[..5], or narrow it, so that the complete answer fits."
+        )
+        result.repairs += 1
+        generated = self.llm.generate(question, repo, [*feedback, (result.cypher, note)])
+        if not generated.answerable or not generated.cypher.strip():
+            return rows
+        cypher = generated.cypher.strip()
+        try:
+            repaired = self.executor.run(cypher, {"repo": repo}, origin="repaired", repo=repo)
+        except (QueryRejected, QueryTimeout):
+            return rows  # the gate already audited the rejection/timeout
+        if repaired.truncated:
+            return rows
+        result.cypher = cypher
+        result.explanation = generated.explanation.strip() or result.explanation
+        return repaired
 
     def prepare_cypher(self, cypher: str, repo: str, question: str = "") -> QuestionResult:
         """A user-edited query: same gate, logged with origin `user-edited`."""
@@ -203,10 +288,15 @@ class Engine:
             ):
                 parts.append(piece)
                 yield piece
-            suffix = sources_suffix("".join(parts), result.rows)
-            if suffix:
-                parts.append(suffix)
-                yield suffix
+            # Deterministic guarantees, in order: missing list items, then citations.
+            for make_suffix in (
+                lambda text: completeness_suffix(text, result.columns, result.rows),
+                lambda text: sources_suffix(text, result.rows),
+            ):
+                suffix = make_suffix("".join(parts))
+                if suffix:
+                    parts.append(suffix)
+                    yield suffix
         except Exception as exc:
             result.error = f"Answer generation failed: {type(exc).__name__}: {exc}"
         finally:
