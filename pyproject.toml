@@ -26,6 +26,7 @@ packages = ["src/codegraph"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 norecursedirs = ["fixtures", ".*"]
 addopts = "-m 'not llm and not network and not whisper'"
 markers = [
