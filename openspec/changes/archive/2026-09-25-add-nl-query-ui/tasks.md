@@ -69,7 +69,7 @@
 ## 8. End-to-end verification
 
 - [x] 8.1 Add the live eval (`@pytest.mark.llm`, skipped without a key and excluded by default): about 10 fixture-repo questions whose expected `qualified_name` sets are computed from `GraphBatch`. Verify with `uv run pytest -m llm` using a real key; record the pass rate and average latency and cost in the change notes. A pass rate below 70% is reported as a finding, not treated as a failure.
-- [ ] 8.2 Check by hand in the browser, both on the host and in the container:
+- [x] 8.2 Check by hand in the browser, both on the host and in the container:
   - connect and index `langchain_basics` from the UI
   - connect and index a public GitHub URL
   - re-index one of them
