@@ -3,3 +3,4 @@ __pycache__/
 *.py[cod]
 .env
 *.db
+!tests/fixtures/sample_repo/.venv/
