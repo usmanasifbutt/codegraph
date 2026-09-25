@@ -73,6 +73,16 @@ def ground_truth(batch):
             "Which third-party packages are imported?",
             {"requests", "pydantic"},
         ),
+        # list questions that the backend benchmark missed (complete-list-answers)
+        (
+            "Which third-party packages does this repo import?",
+            {n["qualified_name"].split(".")[0] for n in batch.nodes["Module"] if n["is_external"]}
+            - {"typing", "json"},
+        ),
+        (
+            "Which non-test functions are async?",
+            {q for q, f in fns.items() if f["is_async"] and not f["is_test"]},
+        ),
         # library questions are answered from external imports, not treated as off-topic
         ("Which library do we use to make HTTP requests?", {"requests"}),
         ("Who calls the retry function?", None),  # not answerable yet (no CALLS edges)

@@ -73,12 +73,19 @@ Rules:
    qualified_name, file / path, start_line, and for relationships source_file and line.
 4. Match names case-sensitively on `name` or `qualified_name`; when the user gives a partial
    name, prefer `name = '...'` or `qualified_name ENDS WITH '.X'`.
-5. Add ORDER BY for stable output and LIMIT 50 unless the user asks for everything or a count.
-6. Questions about which libraries, packages, frameworks, SDKs or services the code uses (for
+5. Add ORDER BY for stable output. Use LIMIT only for "top N" / "most" / "largest" questions;
+   never LIMIT a "which / list / all" question (the system caps rows itself and a LIMIT would
+   silently hide items).
+6. For "which X ..." / "list the X" questions return ONE ROW PER DISTINCT X: use DISTINCT on
+   the item, and aggregate occurrences instead of returning one row per occurrence, e.g.
+   `count(*) AS uses, collect(DISTINCT i.source_file)[..5] AS files`. For dependency questions
+   the item is the top-level package: `split(x.qualified_name, '.')[0]`. Always make the item
+   the FIRST returned column.
+7. Questions about which libraries, packages, frameworks, SDKs or services the code uses (for
    example "which library do we use to call the LLM / database / HTTP API?") ARE answerable:
    list the external imports (Module nodes with is_external = true) with the imported names
    and where they are imported, and let the answer step interpret the package names.
-7. Only if the question cannot be answered from this graph (see "NOT available yet") or is not
+8. Only if the question cannot be answered from this graph (see "NOT available yet") or is not
    about the code at all (general knowledge, live data such as today's weather, chit-chat),
    set answerable=false, leave cypher empty and give a short reason. A question that merely
    mentions a topic the repository is about is still about the code.
@@ -103,17 +110,18 @@ EXAMPLES: list[Example] = [
         "Who imports mypkg.models?",
         "MATCH (m:Module {repo: $repo})-[i:IMPORTS]->(t {repo: $repo})\n"
         "WHERE t.qualified_name = 'mypkg.models' OR t.qualified_name STARTS WITH 'mypkg.models.'\n"
-        "RETURN DISTINCT m.qualified_name AS importer, i.source_file AS file, i.line AS line\n"
+        "RETURN m.qualified_name AS importer, i.source_file AS file, min(i.line) AS line,\n"
+        "       count(*) AS imports\n"
         "ORDER BY file, line",
-        "Modules importing mypkg.models itself or anything defined in it (`from mypkg.models "
-        "import X` points at X).",
+        "One row per module importing mypkg.models itself or anything defined in it "
+        "(`from mypkg.models import X` points at X).",
     ),
     Example(
         "Which modules use the requests package?",
         "MATCH (m:Module {repo: $repo})-[i:IMPORTS]->(x:Module {repo: $repo, is_external: true})\n"
         "WHERE split(x.qualified_name, '.')[0] = 'requests'\n"
-        "RETURN DISTINCT m.qualified_name AS importer, x.qualified_name AS imported,\n"
-        "       i.source_file AS file, i.line AS line\n"
+        "RETURN m.qualified_name AS importer, collect(DISTINCT x.qualified_name) AS imported,\n"
+        "       i.source_file AS file, min(i.line) AS line\n"
         "ORDER BY file, line",
         "Imports of the requests package or any of its submodules, matched on the top-level name.",
     ),
@@ -121,7 +129,7 @@ EXAMPLES: list[Example] = [
         "What does mypkg.core.engine import?",
         "MATCH (m:Module {repo: $repo, qualified_name: 'mypkg.core.engine'})-[i:IMPORTS]->(t)\n"
         "WHERE t.repo = $repo\n"
-        "RETURN labels(t)[0] AS kind, t.qualified_name AS imported, i.resolution AS resolution,\n"
+        "RETURN t.qualified_name AS imported, labels(t)[0] AS kind, i.resolution AS resolution,\n"
         "       i.source_file AS file, i.line AS line\n"
         "ORDER BY line",
         "Everything the module imports: modules, and classes/functions for `from m import X`.",
@@ -154,11 +162,23 @@ EXAMPLES: list[Example] = [
     Example(
         "Which library do we use to connect to the LLM?",
         "MATCH (m:Module {repo: $repo})-[i:IMPORTS]->(x:Module {repo: $repo, is_external: true})\n"
-        "RETURN split(x.qualified_name, '.')[0] AS package, x.qualified_name AS module,\n"
-        "       i.names AS imported_names, m.qualified_name AS used_in,\n"
-        "       i.source_file AS file, i.line AS line\n"
-        "ORDER BY package, file, line LIMIT 100",
-        "All third-party imports with the names imported and where, to identify the LLM client.",
+        "WITH split(x.qualified_name, '.')[0] AS package, i, m\n"
+        "UNWIND i.names AS name\n"
+        "RETURN package, collect(DISTINCT name)[..10] AS imported_names,\n"
+        "       count(DISTINCT m) AS modules, collect(DISTINCT i.source_file)[..5] AS files\n"
+        "ORDER BY package",
+        "One row per third-party package with the names imported from it, to identify the LLM "
+        "client.",
+    ),
+    Example(
+        "Which third-party packages does this repo import?",
+        "MATCH (m:Module {repo: $repo})-[:IMPORTS]->(x:Module {repo: $repo, is_external: true})\n"
+        "WITH split(x.qualified_name, '.')[0] AS package, m\n"
+        "RETURN package, count(DISTINCT m) AS modules,\n"
+        "       collect(DISTINCT m.qualified_name)[..5] AS used_in\n"
+        "ORDER BY package",
+        "One row per external top-level package (standard-library modules are included; the "
+        "answer separates them).",
     ),
     Example(
         "Are there files that failed to parse?",
@@ -172,7 +192,7 @@ EXAMPLES: list[Example] = [
         "Where is retry logic implemented?",
         "CALL db.index.fulltext.queryNodes('symbol_text', 'retry') YIELD node, score\n"
         "WHERE node.repo = $repo\n"
-        "RETURN labels(node)[0] AS kind, node.qualified_name AS name, node.file AS file,\n"
+        "RETURN node.qualified_name AS name, labels(node)[0] AS kind, node.file AS file,\n"
         "       node.start_line AS line, score\n"
         "ORDER BY score DESC LIMIT 10",
         "Full-text search over names and docstrings for 'retry'.",
@@ -189,7 +209,7 @@ EXAMPLES: list[Example] = [
         "List the test functions.",
         "MATCH (f:Function {repo: $repo, is_test: true})\n"
         "RETURN f.qualified_name AS test, f.file AS file, f.start_line AS line\n"
-        "ORDER BY file, line LIMIT 50",
+        "ORDER BY file, line",
         "Functions flagged as pytest-style tests.",
     ),
     Example(
