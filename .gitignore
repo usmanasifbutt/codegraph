@@ -5,3 +5,4 @@ __pycache__/
 *.db
 !tests/fixtures/sample_repo/.venv/
 .codegraph/
+bench/results/
