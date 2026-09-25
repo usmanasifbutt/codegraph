@@ -57,5 +57,5 @@ It now replies that string literals and `.env` files aren't indexed and suggests
   - `-m whisper` (the real `tiny` model transcribes a generated WAV of "Which modules import requests?")
   - an in-container load of the real `small` model
 
-  One spoken question through a real microphone is still worth doing.
+  On 2026-09-25 the user confirmed a spoken question through a real microphone works in the UI.
 - **Configuration note:** the user's `.env` sets `LLM_PROVIDER=openai` but only `OPENROUTER_API_KEY` is filled in. The container UI therefore shows the question box disabled with "OPENAI_API_KEY is not set". To use OpenRouter, set `LLM_PROVIDER=openrouter` and `LLM_MODEL=openai/gpt-4o-mini`.
