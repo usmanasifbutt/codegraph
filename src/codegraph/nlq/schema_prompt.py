@@ -41,6 +41,9 @@ Relationships (direction matters):
 - (:Module)-[:IMPORTS {line, source_file, names, alias, resolution, is_type_checking}]
   ->(:Module|Class|Function)
   the importing module points at the imported module or, for `from m import X`, at X.
+  IMPORTANT: most imports are `from m import X`, so the edge usually points at a Class or
+  Function inside m, not at m. To find who imports module m, leave the target label off and
+  match `(t) WHERE t.qualified_name = 'm' OR t.qualified_name STARTS WITH 'm.'`.
   `resolution` is 'exact' (in-repo target), 'external' (third-party) or 'unresolved'.
   To keep only in-repo imports filter on `i.resolution = 'exact'` (NOT on `is_external`,
   which exists only on Module nodes, so it silently drops Class/Function targets).
@@ -98,11 +101,21 @@ class Example:
 EXAMPLES: list[Example] = [
     Example(
         "Who imports mypkg.models?",
-        "MATCH (m:Module {repo: $repo})-[i:IMPORTS]->(t:Module {repo: $repo})\n"
-        "WHERE t.qualified_name = 'mypkg.models'\n"
-        "RETURN m.qualified_name AS importer, i.source_file AS file, i.line AS line\n"
+        "MATCH (m:Module {repo: $repo})-[i:IMPORTS]->(t {repo: $repo})\n"
+        "WHERE t.qualified_name = 'mypkg.models' OR t.qualified_name STARTS WITH 'mypkg.models.'\n"
+        "RETURN DISTINCT m.qualified_name AS importer, i.source_file AS file, i.line AS line\n"
         "ORDER BY file, line",
-        "Modules with an IMPORTS edge to the module mypkg.models, with the import location.",
+        "Modules importing mypkg.models itself or anything defined in it (`from mypkg.models "
+        "import X` points at X).",
+    ),
+    Example(
+        "Which modules use the requests package?",
+        "MATCH (m:Module {repo: $repo})-[i:IMPORTS]->(x:Module {repo: $repo, is_external: true})\n"
+        "WHERE split(x.qualified_name, '.')[0] = 'requests'\n"
+        "RETURN DISTINCT m.qualified_name AS importer, x.qualified_name AS imported,\n"
+        "       i.source_file AS file, i.line AS line\n"
+        "ORDER BY file, line",
+        "Imports of the requests package or any of its submodules, matched on the top-level name.",
     ),
     Example(
         "What does mypkg.core.engine import?",
