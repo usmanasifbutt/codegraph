@@ -34,10 +34,22 @@ services:
     env_file: .env
     environment:
       NEO4J_URI: bolt://neo4j:7687
+      # The UI offers folders under the read-only mount; clones go to the workspace volume.
+      CODEGRAPH_REPOS_ROOT: /repos
+      CODEGRAPH_WORKSPACE: /workspace
+      HF_HOME: /cache/huggingface
+    ports:
+      # Loopback only: the UI has no authentication.
+      - "127.0.0.1:8501:8501"
     volumes:
-      # The repository to index, read-only. See README for the Windows path form.
+      # Repositories to connect, read-only. Point REPO_PATH at a parent folder (e.g. D:/Projects)
+      # to pick any project under it from the UI. See README for Windows path forms.
       - ${REPO_PATH:-./}:/repos:ro
-    command: ["sleep", "infinity"]
+      - workspace:/workspace
+      - model-cache:/cache/huggingface
+    command: ["codegraph", "ui", "--address", "0.0.0.0", "--port", "8501"]
 
 volumes:
   neo4j-data:
+  workspace:
+  model-cache:

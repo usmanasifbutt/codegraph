@@ -73,11 +73,14 @@ def _set_status(driver: Driver, repo: str, status: str, **extra: Any) -> None:
         ).consume()
 
 
-def write_batch(driver: Driver, batch: GraphBatch, root: str) -> None:
+def write_batch(
+    driver: Driver, batch: GraphBatch, root: str, repo_props: dict[str, Any] | None = None
+) -> None:
     """Replace the graph of `batch.repo` with the contents of `batch`.
 
     Not atomic: `Repo.status` is `indexing` while this runs and `complete` only at the end;
-    on failure it is set to `failed` when the database is still reachable.
+    on failure it is set to `failed` when the database is still reachable. `repo_props` (e.g.
+    `source`, `source_url`, `branch` from the UI) are stored on the Repo node.
     """
     repo = batch.repo
     _set_status(driver, repo, "indexing", root=root)
@@ -111,6 +114,7 @@ def write_batch(driver: Driver, batch: GraphBatch, root: str) -> None:
             "complete",
             indexed_at=_now(),
             file_count=len(batch.nodes.get("File", [])),
+            **(repo_props or {}),
         )
     except Exception:
         try:

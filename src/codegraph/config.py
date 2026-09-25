@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -38,8 +38,8 @@ class ConnectError(Exception):
 class Settings:
     uri: str
     user: str
-    password: str
-    connect_timeout: float
+    password: str = field(repr=False)
+    connect_timeout: float = DEFAULT_CONNECT_TIMEOUT
 
 
 def load_settings(env: Mapping[str, str] | None = None, dotenv_dir: Path | None = None) -> Settings:
@@ -116,3 +116,128 @@ def connect(
             driver.close()
             raise ConnectError(f"could not connect to Neo4j at {settings.uri}: {exc}") from exc
 
+
+# -- UI / text-to-Cypher / speech / repo settings (add-nl-query-ui) --------------------
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+PROVIDERS = ("openai", "openrouter")
+
+
+def _env(env: Mapping[str, str] | None, dotenv_dir: Path | None) -> Mapping[str, str]:
+    if env is not None:
+        return env
+    dotenv = (dotenv_dir or Path.cwd()) / ".env"
+    if dotenv.is_file():
+        load_dotenv(dotenv, override=False)
+    return os.environ
+
+
+def _number(env: Mapping[str, str], name: str, default: float, cast: type = float) -> Any:
+    raw = env.get(name) or ""
+    if not raw.strip():
+        return default
+    try:
+        value = cast(raw)
+    except ValueError:
+        raise ConfigError(f"{name} must be a number, got {raw!r}") from None
+    if value <= 0:
+        raise ConfigError(f"{name} must be greater than 0, got {raw!r}")
+    return value
+
+
+@dataclass(frozen=True)
+class LLMSettings:
+    provider: str
+    model: str
+    api_key: str = field(repr=False)
+    base_url: str | None
+
+
+@dataclass(frozen=True)
+class NLQSettings:
+    max_rows: int = 200
+    timeout_seconds: float = 15.0
+    max_repairs: int = 2
+    audit_log: str | None = None
+
+
+@dataclass(frozen=True)
+class SpeechSettings:
+    whisper_model: str = "small"
+    device: str = "cpu"
+    compute_type: str = "int8"
+
+
+@dataclass(frozen=True)
+class RepoSettings:
+    repos_root: Path | None
+    workspace: Path
+    clone_timeout: float = 180.0
+
+
+def load_llm_settings(
+    env: Mapping[str, str] | None = None, dotenv_dir: Path | None = None
+) -> LLMSettings:
+    env = _env(env, dotenv_dir)
+    provider = (env.get("LLM_PROVIDER") or "openai").strip().lower()
+    if provider not in PROVIDERS:
+        raise ConfigError(f"LLM_PROVIDER must be one of {', '.join(PROVIDERS)}, got {provider!r}")
+    key_var = "OPENAI_API_KEY" if provider == "openai" else "OPENROUTER_API_KEY"
+    api_key = (env.get(key_var) or "").strip()
+    if not api_key:
+        raise ConfigError(f"{key_var} is not set (needed for LLM_PROVIDER={provider})")
+    base_url = None
+    if provider == "openrouter":
+        base_url = env.get("OPENROUTER_BASE_URL") or OPENROUTER_BASE_URL
+    return LLMSettings(
+        provider=provider,
+        model=(env.get("LLM_MODEL") or "gpt-4o-mini").strip(),
+        api_key=api_key,
+        base_url=base_url,
+    )
+
+
+def load_nlq_settings(
+    env: Mapping[str, str] | None = None, dotenv_dir: Path | None = None
+) -> NLQSettings:
+    env = _env(env, dotenv_dir)
+    repairs_raw = (env.get("NLQ_MAX_REPAIRS") or "").strip()
+    if repairs_raw:
+        try:
+            repairs = int(repairs_raw)
+        except ValueError:
+            raise ConfigError(f"NLQ_MAX_REPAIRS must be a number, got {repairs_raw!r}") from None
+        if repairs < 0:
+            raise ConfigError(f"NLQ_MAX_REPAIRS must be 0 or more, got {repairs_raw!r}")
+    else:
+        repairs = 2
+    return NLQSettings(
+        max_rows=_number(env, "NLQ_MAX_ROWS", 200, int),
+        timeout_seconds=_number(env, "NLQ_TIMEOUT_SECONDS", 15.0),
+        max_repairs=repairs,
+        audit_log=(env.get("NLQ_AUDIT_LOG") or "").strip() or None,
+    )
+
+
+def load_speech_settings(
+    env: Mapping[str, str] | None = None, dotenv_dir: Path | None = None
+) -> SpeechSettings:
+    """Local Whisper settings; never needs an API key."""
+    env = _env(env, dotenv_dir)
+    return SpeechSettings(
+        whisper_model=(env.get("WHISPER_MODEL") or "small").strip(),
+        device=(env.get("WHISPER_DEVICE") or "cpu").strip(),
+        compute_type=(env.get("WHISPER_COMPUTE_TYPE") or "int8").strip(),
+    )
+
+
+def load_repo_settings(
+    env: Mapping[str, str] | None = None, dotenv_dir: Path | None = None
+) -> RepoSettings:
+    env = _env(env, dotenv_dir)
+    root = (env.get("CODEGRAPH_REPOS_ROOT") or "").strip()
+    workspace = (env.get("CODEGRAPH_WORKSPACE") or "").strip() or ".codegraph/clones"
+    return RepoSettings(
+        repos_root=Path(root) if root else None,
+        workspace=Path(workspace),
+        clone_timeout=_number(env, "CODEGRAPH_CLONE_TIMEOUT_SECONDS", 180.0),
+    )

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Annotated
@@ -92,7 +94,18 @@ def index(
         _log(f"parsing {root} ...")
         batch = extract(root, repo, exclude or [])
         _log(f"writing {sum(batch.node_counts().values())} nodes, {len(batch.rels)} relationships")
-        write_batch(driver, batch, root=str(root))
+        write_batch(
+            driver,
+            batch,
+            root=str(root),
+            # null values remove any git metadata left by an earlier UI clone of this name
+            repo_props={
+                "source": "local",
+                "source_url": None,
+                "branch": None,
+                "excludes": list(exclude or []),
+            },
+        )
     except Exception as exc:  # any failure after connecting is a runtime failure
         _log(f"error: indexing '{repo}' failed: {type(exc).__name__}: {exc}")
         raise typer.Exit(EXIT_FAILURE) from None
@@ -111,6 +124,33 @@ def index(
         typer.echo(json.dumps(summary.to_dict()))
     else:
         _print_summary(summary)
+
+
+def streamlit_command(port: int, address: str) -> list[str]:
+    app_path = Path(__file__).parent / "ui" / "app.py"
+    return [
+        sys.executable, "-m", "streamlit", "run", str(app_path),
+        "--server.port", str(port),
+        "--server.address", address,
+        "--server.headless", "true",
+        "--browser.gatherUsageStats", "false",
+    ]  # fmt: skip
+
+
+@app.command()
+def ui(
+    port: Annotated[int, typer.Option("--port", help="Port for the web UI.")] = 8501,
+    address: Annotated[
+        str, typer.Option("--address", help="Interface to bind (keep 127.0.0.1: no auth).")
+    ] = "127.0.0.1",
+) -> None:
+    """Start the web UI: connect and index repositories, then ask questions."""
+    _log(f"codegraph UI on http://{'localhost' if address == '127.0.0.1' else address}:{port}")
+    try:
+        code = subprocess.call(streamlit_command(port, address))
+    except KeyboardInterrupt:
+        code = EXIT_OK
+    raise typer.Exit(code)
 
 
 def main() -> None:

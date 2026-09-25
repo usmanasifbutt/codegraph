@@ -113,3 +113,20 @@ def test_connect_error_exits_1_without_traceback(no_db_env, sample_repo, monkeyp
     assert result.exit_code == 1
     assert "rejected the credentials" in result.stderr and "Traceback" not in result.output
 
+
+def test_ui_command_line(monkeypatch):
+    import codegraph.cli as cli
+
+    seen = {}
+
+    def fake_call(cmd):
+        seen["cmd"] = cmd
+        return 0
+
+    monkeypatch.setattr(cli.subprocess, "call", fake_call)
+    result = runner.invoke(app, ["ui", "--port", "8600"])
+    assert result.exit_code == 0
+    cmd = seen["cmd"]
+    assert cmd[1:4] == ["-m", "streamlit", "run"] and cmd[4].endswith("app.py")
+    assert cmd[cmd.index("--server.port") + 1] == "8600"
+    assert cmd[cmd.index("--server.address") + 1] == "127.0.0.1"
